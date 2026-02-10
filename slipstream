@@ -1,0 +1,112 @@
+#!/bin/bash
+show_menu() {
+	echo
+	cat <<-MENU
+    =================================
+      SlipStream Manager by NDEVXLK
+    =================================
+    1) Install SlipStream
+    2) Uninstall SlipStream
+    3) Start SlipStream
+    4) Stop SlipStream
+    5) Change Nameserver
+    6) Change Upstream Port
+    7) Exit
+	MENU
+}
+install_slipstream() {
+    if [ ! -d '/root/slipstream' ]; then
+        echo
+        read -p 'Enter nameserver: ' NAMESERVER
+        echo
+        read -p 'Enter upstream port: ' UPSTREAM_PORT
+        sudo mkdir /root/slipstream
+        if [[ "$(uname -m)" == "x86_64" ]]; then
+            sudo wget -4 -O /root/slipstream/slipstream-server 'https://raw.githubusercontent.com/ndevxlk/slipstream/main/slipstream-server-linux-amd64'
+        else
+            sudo wget -4 -O /root/slipstream/slipstream-server 'https://raw.githubusercontent.com/ndevxlk/slipstream/main/slipstream-server-linux-arm64'
+        fi
+        sudo chmod +x /root/slipstream/slipstream-server
+        sudo openssl req -x509 -newkey rsa:2048 -nodes -keyout "/root/slipstream/key.pem" -out "/root/slipstream/cert.pem" -days 365 -subj "/CN=slipstream"
+        sudo bash -c 'cat > /etc/systemd/system/slipstream.service' << EOF
+[Unit]
+Description = SlipStream Server
+After = network.target
+[Service]
+Type = simple
+User = root
+WorkingDirectory = /root/slipstream
+ExecStart = /root/slipstream/slipstream-server --dns-listen-host 0.0.0.0 --dns-listen-port 5300 --target-address 127.0.0.1:$UPSTREAM_PORT --domain $NAMESERVER --cert cert.pem --key key.pem
+Restart = always
+[Install]
+WantedBy = multi-user.target
+EOF
+        sudo systemctl daemon-reload
+        sudo systemctl enable slipstream.service
+        sudo systemctl start slipstream.service
+        sudo nft add table ip nat
+        sudo nft add chain ip nat prerouting { type nat hook prerouting priority -100 \; }
+        sudo nft add rule ip nat prerouting udp dport 53 redirect to :5300
+        sudo nft list ruleset > /etc/nftables.conf
+    fi
+    echo -e '\nSlipStream was installed successfully.'
+}
+uninstall_slipstream() {
+    echo
+    read -rp 'Press enter to continue...' _
+    if [ -d '/root/slipstream' ]; then
+        stop_slipstream
+        sudo rm /etc/systemd/system/slipstream.service
+        sudo systemctl daemon-reload
+        sudo rm -rf /root/slipstream
+        sudo nft flush ruleset
+        sudo nft list ruleset > /etc/nftables.conf
+    fi
+    echo -e '\nSlipStream was uninstalled successfully.'
+}
+start_slipstream() {
+    sudo systemctl start slipstream.service
+    echo -e '\nSlipStream was started successfully.'
+}
+stop_slipstream() {
+    sudo systemctl stop slipstream.service
+    echo -e '\nSlipStream was stopped successfully.'
+}
+change_ns() {
+    echo
+    read -p 'Enter nameserver: ' NAMESERVER
+    sudo sed -i "s/\(--domain \)[^ ]*/\1${NAMESERVER}/" /etc/systemd/system/slipstream.service
+    sudo systemctl daemon-reload
+    stop_slipstream
+    start_slipstream
+    echo -e '\nNameserver was changed successfully.'
+}
+change_uport() {
+    echo
+    read -p 'Enter upstream port: ' UPSTREAM_PORT
+    sudo sed -i "s/127\.0\.0\.1:[0-9]\+/127.0.0.1:${UPSTREAM_PORT}/" /etc/systemd/system/slipstream.service
+    sudo systemctl daemon-reload
+    stop_slipstream
+    start_slipstream
+    echo -e '\nUpstream port was changed successfully.'
+}
+if [ "$EUID" -ne 0 ]; then
+    echo -e '\nYou must run this script as the root user!\n'
+    exit 1
+fi
+while true; do
+    show_menu
+    read -rp $'\nChoose an option. [1-7]: ' OPTION
+    case "$OPTION" in
+        1) install_slipstream ;;
+        2) uninstall_slipstream ;;
+        3) start_slipstream ;;
+        4) stop_slipstream ;;
+        5) change_ns ;;
+        6) change_uport ;;
+        7) echo -e '\nBye.\n'; exit 0 ;;
+        *) echo -e '\nInvalid option. Choose 1-7.' ;;
+    esac
+    echo
+    read -rp 'Press enter to continue...' _
+done
