@@ -3,12 +3,12 @@ show_menu() {
 	echo
 	cat <<-MENU
     =================================
-      SlipStream Manager by NDEVXLK
+      Slipstream Manager by NDEVXLK
     =================================
-    1) Install SlipStream
-    2) Uninstall SlipStream
-    3) Start SlipStream
-    4) Stop SlipStream
+    1) Install Slipstream
+    2) Uninstall Slipstream
+    3) Start Slipstream
+    4) Stop Slipstream
     5) Change Nameserver
     6) Change Upstream Port
     7) Exit
@@ -30,7 +30,7 @@ install_slipstream() {
         sudo openssl req -x509 -newkey rsa:2048 -nodes -keyout "/root/slipstream/key.pem" -out "/root/slipstream/cert.pem" -days 365 -subj "/CN=slipstream"
         sudo bash -c 'cat > /etc/systemd/system/slipstream.service' << EOF
 [Unit]
-Description = SlipStream Server
+Description = Slipstream Server
 After = network.target
 [Service]
 Type = simple
@@ -49,7 +49,7 @@ EOF
         sudo nft add rule ip nat prerouting udp dport 53 redirect to :5300
         sudo nft list ruleset > /etc/nftables.conf
     fi
-    echo -e '\nSlipStream was installed successfully.'
+    echo -e '\nSlipstream was installed successfully.'
 }
 uninstall_slipstream() {
     echo
@@ -62,15 +62,15 @@ uninstall_slipstream() {
         sudo nft flush ruleset
         sudo nft list ruleset > /etc/nftables.conf
     fi
-    echo -e '\nSlipStream was uninstalled successfully.'
+    echo -e '\nSlipstream was uninstalled successfully.'
 }
 start_slipstream() {
     sudo systemctl start slipstream.service
-    echo -e '\nSlipStream was started successfully.'
+    echo -e '\nSlipstream was started successfully.'
 }
 stop_slipstream() {
     sudo systemctl stop slipstream.service
-    echo -e '\nSlipStream was stopped successfully.'
+    echo -e '\nSlipstream was stopped successfully.'
 }
 change_ns() {
     echo
